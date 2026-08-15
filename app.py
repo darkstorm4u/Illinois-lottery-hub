@@ -5,7 +5,7 @@ st.set_page_config(page_title="IL Lottery Hub", layout="wide")
 st.title("🎟️ Illinois Lottery Hub")
 BASE = "https://www.drawanalytics.com/api/v1/illinois"
 
-game = st.selectbox("Game", ["pick4", "powerball", "mega_millions"])
+game = st.selectbox("Game", ["pick3", "pick4", "lotto", "lucky_day_lotto", "powerball", "mega_millions"])
 if st.button("Fetch Live + Generate Tickets"):
     try:
         r = requests.get(f"{BASE}/{game}/latest", timeout=5).json()
