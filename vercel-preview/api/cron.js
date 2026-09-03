@@ -6,22 +6,46 @@ function authorized(req) {
   return Boolean(secret && req.headers.authorization === `Bearer ${secret}`);
 }
 
+function hasCompleteBaseline(data) {
+  return Boolean(data?.games && Object.keys(GAME_CONFIG).every(game => Array.isArray(data.games[game]) && data.games[game].length));
+}
+
 export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   try {
-    const existing = await readHistory() || { source: 'https://www.illinoislottery.com/dbg/results/', checked: null, games: {} };
+    const existing = await readHistory();
+    if (!hasCompleteBaseline(existing)) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Automatic update refused: a complete six-game baseline has not been backfilled and stored yet.'
+      });
+    }
+
     const cutoff = cutoffSixMonths();
     const games = { ...existing.games };
     const report = {};
+    let successfulUpdates = 0;
 
     for (const game of Object.keys(GAME_CONFIG)) {
       try {
         const fresh = await fetchOfficialPages(game, 2);
-        games[game] = mergeAndTrim(game, [...(games[game] || []), ...fresh], cutoff);
-        report[game] = { ok: true, rows: games[game].length, newest: games[game][0]?.[0] || null };
+        if (!fresh.length) throw new Error('Official fetch returned no valid rows.');
+        const merged = mergeAndTrim(game, [...games[game], ...fresh], cutoff);
+        if (!merged.length) throw new Error('Merged history would be empty.');
+        games[game] = merged;
+        successfulUpdates += 1;
+        report[game] = { ok: true, rows: merged.length, newest: merged[0]?.[0] || null };
       } catch (error) {
-        report[game] = { ok: false, error: error.message, preservedRows: (games[game] || []).length };
+        report[game] = { ok: false, error: error.message, preservedRows: games[game].length };
       }
+    }
+
+    if (!successfulUpdates) {
+      return res.status(503).json({
+        ok: false,
+        error: 'No official game updates succeeded; stored history was left unchanged.',
+        report
+      });
     }
 
     const next = { ...existing, checked: new Date().toISOString(), cutoff, games };
