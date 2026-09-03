@@ -2,7 +2,7 @@
   const RULES = {
     pick3: { name: 'Pick 3', kind: 'digits', count: 3, min: 0, max: 9, repeats: true, fireball: true, note: 'Three drawn digits, plus a separately drawn Fireball digit.' },
     pick4: { name: 'Pick 4', kind: 'digits', count: 4, min: 0, max: 9, repeats: true, fireball: true, note: 'Four drawn digits, plus a separately drawn Fireball digit.' },
-    lotto: { name: 'Illinois Lotto', kind: 'lotto', count: 6, min: 1, max: 50, repeats: false, note: 'Three separate 6-of-50 drawings: Jackpot, Lotto Million 1, and Lotto Million 2.' },
+    lotto: { name: 'Illinois Lotto', kind: 'lotto', count: 6, min: 1, max: 50, repeats: false, extraShot: { name: 'Extra Shot', min: 1, max: 25 }, note: 'Three separate 6-of-50 drawings: Jackpot, Lotto Million 1, and Lotto Million 2. A separate Extra Shot number from 1–25 is drawn with the Jackpot drawing.' },
     lucky: { name: 'Lucky Day Lotto', kind: 'balls', count: 5, min: 1, max: 45, repeats: false, note: 'Five unique numbers from 1 through 45.' },
     powerball: { name: 'Powerball', kind: 'balls', count: 5, min: 1, max: 69, repeats: false, special: { name: 'Powerball', min: 1, max: 26 }, note: 'Five unique white balls from 1–69 plus one Powerball from 1–26.' },
     mega: { name: 'Mega Millions', kind: 'balls', count: 5, min: 1, max: 70, repeats: false, special: { name: 'Mega Ball', min: 1, max: 24 }, note: 'Five unique white balls from 1–70 plus one Mega Ball from 1–24.' }
@@ -36,7 +36,8 @@
           { label: 'Jackpot', main: unique(6, 1, 50) },
           { label: 'Lotto Million 1', main: unique(6, 1, 50) },
           { label: 'Lotto Million 2', main: unique(6, 1, 50) }
-        ]
+        ],
+        extraShot: integer(rule.extraShot.min, rule.extraShot.max)
       };
     }
     const main = rule.repeats ? digits(rule.count) : unique(rule.count, rule.min, rule.max);
@@ -96,6 +97,11 @@
       row.append(label, ...line.main.map(n => ball(n)));
       output.append(row);
     });
+    if (result.extraShot !== null && result.extraShot !== undefined) {
+      const row = document.createElement('div'); row.className = 'ticket';
+      const label = document.createElement('span'); label.className = 'ticket-label'; label.textContent = 'Extra Shot:';
+      row.append(label, ball(result.extraShot, true)); output.append(row);
+    }
     if (result.fireball !== null && result.fireball !== undefined) {
       const row = document.createElement('div'); row.className = 'ticket';
       const label = document.createElement('span'); label.className = 'ticket-label'; label.textContent = 'Fireball:';
