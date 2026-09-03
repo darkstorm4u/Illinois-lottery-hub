@@ -18,6 +18,7 @@
     if (checked) checked.textContent = window.LotteryHistory.checked;
     const selector = document.querySelector('#stats-game');
     if (selector) selector.dispatchEvent(new Event('change'));
+    window.dispatchEvent(new CustomEvent('lottery-history-loaded', { detail: { checked: window.LotteryHistory.checked } }));
   } catch (_) {
     // Keep the bundled v6 sample if Blob history cannot be read.
   }
