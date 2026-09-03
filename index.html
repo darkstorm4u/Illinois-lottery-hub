@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#131b3b" />
+  <meta name="description" content="Lottery Hub preview with verified six-month history and Illinois draw simulator." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Lottery Hub Preview</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header><p class="eyebrow">PERSONAL NUMBER HUB · PREVIEW</p><h1>Lottery Hub</h1><p class="subtitle">Build fresh ticket sets, simulate official draw structures, and study verified history.</p></header>
+    <section class="card controls" aria-label="Ticket settings">
+      <label>Mode<select id="mode"><option value="random" selected>Random</option><option value="personal">Personal Choice</option></select></label>
+      <label>Game<select id="game"></select></label>
+      <label id="play-type-wrap">Play type<select id="play-type"></select></label>
+      <label>Tickets<select id="ticket-count"><option value="1">1</option><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select></label>
+      <button id="generate" class="primary">Generate tickets</button>
+    </section>
+    <section class="card preferences" id="preference-panel" aria-labelledby="preference-title" hidden>
+      <div><p class="eyebrow">PERSONAL CHOICE</p><h2 id="preference-title">Add gentle preferences</h2><p class="helper">Favorites are used more often, while odd/even variety and low, middle, and high number ranges are softly encouraged. Any valid line can still be generated.</p></div>
+      <div class="preference-grid"><label><span id="main-favorites-label">Favorite numbers</span><input id="main-favorites" type="text" inputmode="numeric" autocomplete="off" aria-describedby="main-favorites-help preference-status" /><small id="main-favorites-help"></small></label><label id="special-favorites-wrap" hidden><span id="special-favorites-label">Favorite bonus numbers</span><input id="special-favorites" type="text" inputmode="numeric" autocomplete="off" aria-describedby="special-favorites-help preference-status" /><small id="special-favorites-help"></small></label></div>
+      <p class="status" id="preference-status" aria-live="polite"></p><p class="notice"><strong>Good to know:</strong> Personal Choice organizes your preferences. It does not increase the mathematical chance of any valid line.</p>
+    </section>
+    <section class="card"><div class="section-heading"><div><p class="eyebrow">YOUR PICKS</p><h2>Generated tickets</h2></div><button id="copy" class="quiet" disabled>Copy</button></div><div id="tickets" class="tickets" aria-live="polite"><p class="empty">Choose your settings, then generate tickets.</p></div></section>
+    <section class="card statistics" aria-labelledby="statistics-title">
+      <div class="section-heading"><div><p class="eyebrow">PAST DRAWINGS</p><h2 id="statistics-title">Statistics</h2></div></div>
+      <p class="helper">Descriptive counts from verified official Illinois Lottery drawings. These counts do not forecast a future draw or change the odds.</p>
+      <div class="stats-controls"><label>Game <select id="stats-game"></select></label><label id="stats-session-wrap" hidden>Drawing <select id="stats-session"><option value="all">Midday and Evening</option><option value="midday">Midday only</option><option value="evening">Evening only</option></select></label></div>
+      <p class="status" id="stats-coverage" aria-live="polite"></p><div class="stats-grid" id="stats-results"></div>
+      <p class="source-note">Source: Illinois Lottery results pages. Checked <span id="stats-checked"></span>. The preview falls back to the last bundled verified sample if Blob history is unavailable.</p>
+    </section>
+    <section class="install card" id="install-card"><div><p class="eyebrow">PHONE APP</p><h2>Add Lottery Hub to your home screen</h2><p id="install-help">In Chrome, tap the three-dot menu, then choose Install app or Add to Home screen.</p></div><button id="install" class="primary">How to install</button></section>
+  </main>
+  <script src="lottery-core.js"></script>
+  <script src="historical-data.js"></script>
+  <script src="stats-core.js"></script>
+  <script src="app.js"></script>
+  <script src="draw-simulator.js"></script>
+  <script src="history-live.js"></script>
+  <script src="analytics.js"></script>
+</body>
+</html>
