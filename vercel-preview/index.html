@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#131b3b" />
-  <meta name="description" content="Lottery Hub preview with verified six-month history." />
+  <meta name="description" content="Lottery Hub preview with verified six-month history and Illinois draw simulator." />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="https://lottery-hub-delta.vercel.app/styles.css" />
   <title>Lottery Hub Preview</title>
 </head>
 <body>
   <main class="app-shell">
-    <header><p class="eyebrow">PERSONAL NUMBER HUB · PREVIEW</p><h1>Lottery Hub</h1><p class="subtitle">Build fresh ticket sets with Random or Personal Choice.</p></header>
+    <header><p class="eyebrow">PERSONAL NUMBER HUB · PREVIEW</p><h1>Lottery Hub</h1><p class="subtitle">Build fresh ticket sets, simulate official draw structures, and study verified history.</p></header>
     <section class="card controls" aria-label="Ticket settings">
       <label>Mode<select id="mode"><option value="random" selected>Random</option><option value="personal">Personal Choice</option></select></label>
       <label>Game<select id="game"></select></label>
@@ -38,6 +38,7 @@
   <script src="https://lottery-hub-delta.vercel.app/historical-data.js?v=6"></script>
   <script src="https://lottery-hub-delta.vercel.app/stats-core.js?v=6"></script>
   <script src="https://lottery-hub-delta.vercel.app/app.js?v=6"></script>
+  <script src="draw-simulator.js"></script>
   <script src="history-live.js"></script>
   <script src="analytics.js"></script>
 </body>
