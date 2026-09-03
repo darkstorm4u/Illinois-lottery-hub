@@ -1,0 +1,38 @@
+name: Verify Lottery Hub Preview
+
+on:
+  push:
+    branches:
+      - vercel-blob-backfill-preview
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm install
+      - name: Syntax check
+        run: |
+          node --check lottery-core.js
+          node --check app.js
+          node --check draw-simulator.js
+          node --check analytics.js
+          node --check history-live.js
+          node --check stats-core.js
+          node --check api/backfill.js
+          node --check api/cron.js
+          node --check api/history.js
+          node --check api/verify.js
+          node --check lib/history.js
+          node --check lib/store.js
+      - name: Verify official Illinois Lottery parsers
+        run: node scripts/verify-preview.mjs
