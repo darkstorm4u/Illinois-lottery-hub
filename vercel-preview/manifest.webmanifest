@@ -1,0 +1,11 @@
+{
+  "name": "Lottery Hub Preview",
+  "short_name": "Lottery Hub",
+  "description": "Preview build for verified six-month Illinois Lottery history.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fc",
+  "theme_color": "#131b3b"
+}
