@@ -26,11 +26,12 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
       VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
+      VERCEL_SCOPE: darkstorm4u-5462s-projects
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           package-manager-cache: false
@@ -50,7 +51,7 @@ jobs:
         run: |
           preview_env_file="$(mktemp)"
           trap 'rm -f "$preview_env_file"' EXIT
-          npx --yes vercel@59.11.7 env pull "$preview_env_file" --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx --yes vercel@59.11.7 env pull "$preview_env_file" --yes --environment=preview --scope="$VERCEL_SCOPE"
           echo "Preview environment keys:"
           grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$preview_env_file" | cut -d= -f1 | sort -u || true
           for key in BLOB_READ_WRITE_TOKEN CRON_SECRET; do
