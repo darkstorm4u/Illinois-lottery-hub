@@ -1,5 +1,13 @@
 const assert = require('node:assert/strict');
-const { GAMES, PLAY_TYPES, generateRandomTicket, generatePersonalTicket, boxWays } = require('../lottery-core.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const source = fs.readFileSync(path.join(__dirname, '..', 'lottery-core.js'), 'utf8');
+const context = { globalThis: {}, Math, Set, Map, Array, Number, Object, RegExp };
+vm.createContext(context);
+vm.runInContext(source, context, { filename: 'lottery-core.js' });
+const { GAMES, PLAY_TYPES, generateRandomTicket, generatePersonalTicket, boxWays } = context.globalThis.LotteryCore;
 
 function validateTicket(game, playType, ticket) {
   const cfg = GAMES[game];
