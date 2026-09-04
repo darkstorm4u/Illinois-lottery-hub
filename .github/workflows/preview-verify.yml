@@ -30,5 +30,8 @@ jobs:
           node --check api/verify.js
           node --check lib/history.js
           node --check lib/store.js
+          node --check scripts/verify-generator.cjs
+      - name: Verify ticket generator rules
+        run: node scripts/verify-generator.cjs
       - name: Verify official Illinois Lottery parsers
         run: node scripts/verify-preview.mjs
