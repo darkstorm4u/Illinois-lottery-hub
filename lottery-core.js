@@ -34,6 +34,7 @@
   }
   function ensureBoxable(game,digits,random){let out=[...digits];for(let i=0;i<20&&boxWays(game,out)===0;i++)out= randomDigits(game==='pick3'?3:4,random);if(boxWays(game,out)===0)out[out.length-1]=(out[0]+1)%10;return out;}
   function playLabelFor(game,playType,main){
+    if(game!=='pick3'&&game!=='pick4')return '';
     if(game==='pick3'&&playType==='front_pair')return 'Front Pair';
     if(game==='pick3'&&playType==='back_pair')return 'Back Pair';
     if(['box','straight_box','combo'].includes(playType)){const ways=boxWays(game,main);const base=playType==='box'?'Box':playType==='combo'?'Combo':'Straight / Box';return `${ways}-Way ${base}`;}
