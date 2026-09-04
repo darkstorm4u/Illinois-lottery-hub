@@ -1,23 +1,39 @@
 name: Vercel Preview Preflight
 
+# This workflow is intentionally limited to the isolated preview branch. It
+# reads preview configuration only; it never builds, deploys, promotes, or
+# reads production environment values.
+
 on:
   push:
     branches:
       - vercel-blob-backfill-preview
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-preview-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: lottery-hub-preview
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
       VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          package-manager-cache: false
       - name: Check Vercel CLI credential availability
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
@@ -32,11 +48,13 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
       - name: Read preview environment key names only
         run: |
-          npx --yes vercel@latest env pull .env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN"
+          preview_env_file="$(mktemp)"
+          trap 'rm -f "$preview_env_file"' EXIT
+          npx --yes vercel@59.11.7 env pull "$preview_env_file" --yes --environment=preview --token="$VERCEL_TOKEN"
           echo "Preview environment keys:"
-          grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.preview.local | cut -d= -f1 | sort -u || true
+          grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$preview_env_file" | cut -d= -f1 | sort -u || true
           for key in BLOB_READ_WRITE_TOKEN CRON_SECRET; do
-            if grep -q "^${key}=" .env.preview.local; then
+            if grep -q "^${key}=" "$preview_env_file"; then
               echo "${key}=PRESENT"
             else
               echo "${key}=MISSING"
