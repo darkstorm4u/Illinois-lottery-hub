@@ -1,0 +1,44 @@
+name: Vercel Preview Preflight
+
+on:
+  push:
+    branches:
+      - vercel-blob-backfill-preview
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
+      VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check Vercel CLI credential availability
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN=MISSING"
+            echo "A GitHub Actions VERCEL_TOKEN is required before this workflow can read Vercel preview settings."
+            exit 2
+          fi
+          echo "VERCEL_TOKEN=PRESENT"
+      - name: Link read-only preflight to known Lottery Hub project
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+      - name: Read preview environment key names only
+        run: |
+          npx --yes vercel@latest env pull .env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN"
+          echo "Preview environment keys:"
+          grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.preview.local | cut -d= -f1 | sort -u || true
+          for key in BLOB_READ_WRITE_TOKEN CRON_SECRET; do
+            if grep -q "^${key}=" .env.preview.local; then
+              echo "${key}=PRESENT"
+            else
+              echo "${key}=MISSING"
+            fi
+          done
