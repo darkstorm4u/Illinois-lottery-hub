@@ -49,8 +49,8 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
+          import fs from 'node:fs';
+          import path from 'node:path';
 
           function walk(directory) {
             return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const fs = require('fs');
+          import fs from 'node:fs';
           const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
           const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const fs = require('fs');
+          import fs from 'node:fs';
           const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
 
           const envResponse = await fetch(
@@ -191,7 +191,7 @@ jobs:
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          const fs = require('fs');
+          import fs from 'node:fs';
           const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
           for (const pathname of ['/', '/manifest.webmanifest', '/sw.js', '/api/history']) {
             const response = await fetch(`${deployment.url}${pathname}`, { cache: 'no-store' });
