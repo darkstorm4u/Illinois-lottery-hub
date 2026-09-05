@@ -15,3 +15,4 @@
   root.LotteryStats = { drawModel, displayNumber };
 })(window);
 
+// Lucky Day Lotto rows include a drawing session.
