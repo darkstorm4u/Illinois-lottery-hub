@@ -22,7 +22,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
       VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
-      VERCEL_SCOPE: darkstorm4u-5462s-projects
     defaults:
       run:
         working-directory: vercel-preview
@@ -45,86 +44,158 @@ jobs:
             exit 1
           }
 
-      - name: Install preview dependencies
-        run: npm install
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Link only this runner to the existing Vercel project
-        shell: bash
-        run: |
-          node -e "const fs=require('fs');fs.mkdirSync('.vercel',{recursive:true});fs.writeFileSync('.vercel/project.json',JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}))"
-          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
-
-      - name: Build the Preview deployment
-        run: vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
-
-      - name: Deploy to an isolated Preview URL
+      - name: Create an isolated Preview deployment through the Vercel API
         id: deploy
         shell: bash
         run: |
-          deployment_url="$(vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE")"
-          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Preview URL: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+          node --input-type=module <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
 
-      - name: Pull Preview-only environment values for protected verification
-        shell: bash
-        run: |
-          vercel env pull .vercel/.env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
-          grep -q '^CRON_SECRET=' .vercel/.env.preview.local || {
-            echo "::error::CRON_SECRET is missing from Preview."
-            exit 1
-          }
-          grep -q '^BLOB_READ_WRITE_TOKEN=' .vercel/.env.preview.local || {
-            echo "::error::BLOB_READ_WRITE_TOKEN is missing from Preview."
-            exit 1
+          function walk(directory) {
+            return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+              if (entry.name === 'node_modules' || entry.name === '.vercel') return [];
+              const full = path.join(directory, entry.name);
+              return entry.isDirectory() ? walk(full) : [full];
+            });
           }
 
-      - name: Verify the updater rejects anonymous requests
-        shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-        run: |
-          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST "$DEPLOYMENT_URL/api/backfill?game=pick3")"
-          test "$status" = "401" || {
-            echo "::error::Protected updater returned HTTP $status without authorization; expected 401."
-            exit 1
+          const files = walk('.').map((file) => ({
+            file: file.replace(/^\.([/\\])/, '').replaceAll('\\', '/'),
+            data: fs.readFileSync(file, 'utf8')
+          }));
+
+          const response = await fetch(
+            `https://api.vercel.com/v13/deployments?teamId=${encodeURIComponent(process.env.VERCEL_ORG_ID)}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name: 'lottery-hub',
+                project: process.env.VERCEL_PROJECT_ID,
+                files,
+                gitMetadata: {
+                  remoteUrl: 'https://github.com/darkstorm4u/Illinois-lottery-hub',
+                  commitRef: 'vercel-blob-backfill-preview',
+                  commitSha: process.env.GITHUB_SHA,
+                  commitMessage: 'Isolated six-game Lottery Hub preview',
+                  dirty: false,
+                  ci: true,
+                  ciType: 'github-actions'
+                }
+              })
+            }
+          );
+
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(`Vercel deployment request failed (${response.status}): ${JSON.stringify(result)}`);
           }
 
-      - name: Backfill six months for all six games
+          const url = `https://${result.url}`;
+          fs.writeFileSync('.preview-deployment.json', JSON.stringify({ id: result.id, url }));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `id=${result.id}\nurl=${url}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Preview URL: ${url}\n`);
+          console.log(`Created Preview deployment ${result.id}`);
+          NODE
+
+      - name: Wait for the Preview deployment to become ready
         shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: |
-          set -a
-          source .vercel/.env.preview.local
-          set +a
-          test -n "${CRON_SECRET:-}" || {
-            echo "::error::CRON_SECRET could not be loaded."
-            exit 1
+          node --input-type=module <<'NODE'
+          const fs = require('fs');
+          const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
+          const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          for (let attempt = 1; attempt <= 90; attempt += 1) {
+            const response = await fetch(
+              `https://api.vercel.com/v13/deployments/${deployment.id}?teamId=${encodeURIComponent(process.env.VERCEL_ORG_ID)}`,
+              { headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` } }
+            );
+            const result = await response.json();
+            if (!response.ok) throw new Error(`Could not inspect deployment: ${response.status} ${JSON.stringify(result)}`);
+            const state = result.readyState || result.state;
+            if (state === 'READY') {
+              console.log('Preview deployment is READY.');
+              process.exit(0);
+            }
+            if (state === 'ERROR' || state === 'CANCELED') {
+              throw new Error(`Preview deployment ended in ${state}.`);
+            }
+            await wait(3000);
           }
-          for game in pick3 pick4 lotto lucky powerball mega; do
-            response="$(curl --fail --silent --show-error --request POST --header "Authorization: Bearer ${CRON_SECRET}" "$DEPLOYMENT_URL/api/backfill?game=$game")"
-            echo "$response" | jq --exit-status '.ok == true' > /dev/null
-            rows="$(echo "$response" | jq --raw-output '.rows')"
-            echo "$game: $rows rows" >> "$GITHUB_STEP_SUMMARY"
-          done
+          throw new Error('Timed out waiting for the Preview deployment.');
+          NODE
 
-      - name: Verify all six stored histories
+      - name: Backfill and verify all six games
         shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: |
-          result="$(curl --fail --silent --show-error "$DEPLOYMENT_URL/api/verify")"
-          echo "$result" | jq --exit-status '.ok == true and (.checks | to_entries | all(.value.ok == true))' > /dev/null
-          echo "$result" | jq --raw-output '.checks | to_entries[] | "\(.key): \(.value.rows) rows, \(.value.oldest) through \(.value.newest)"' >> "$GITHUB_STEP_SUMMARY"
+          node --input-type=module <<'NODE'
+          const fs = require('fs');
+          const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
 
-      - name: Smoke-check the PWA files
+          const envResponse = await fetch(
+            `https://api.vercel.com/v10/projects/${process.env.VERCEL_PROJECT_ID}/env?decrypt=true&teamId=${encodeURIComponent(process.env.VERCEL_ORG_ID)}`,
+            { headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` } }
+          );
+          const envPayload = await envResponse.json();
+          if (!envResponse.ok) throw new Error(`Could not read Preview configuration: ${envResponse.status}`);
+
+          const appliesToPreview = (item) => Array.isArray(item.target) && item.target.includes('preview');
+          const cron = (envPayload.envs || []).find((item) => item.key === 'CRON_SECRET' && appliesToPreview(item))?.value;
+          const blob = (envPayload.envs || []).find((item) => item.key === 'BLOB_READ_WRITE_TOKEN' && appliesToPreview(item))?.value;
+          if (!cron) throw new Error('CRON_SECRET is missing from Preview.');
+          if (!blob) throw new Error('BLOB_READ_WRITE_TOKEN is missing from Preview.');
+
+          const anonymous = await fetch(`${deployment.url}/api/backfill?game=pick3`, { method: 'POST' });
+          if (anonymous.status !== 401) {
+            throw new Error(`Protected updater returned HTTP ${anonymous.status} without authorization; expected 401.`);
+          }
+
+          const games = ['pick3', 'pick4', 'lotto', 'lucky', 'powerball', 'mega'];
+          for (const game of games) {
+            const response = await fetch(`${deployment.url}/api/backfill?game=${game}`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${cron}` }
+            });
+            const text = await response.text();
+            let result;
+            try { result = JSON.parse(text); } catch { result = { raw: text.slice(0, 500) }; }
+            if (!response.ok || result.ok !== true) {
+              throw new Error(`${game} backfill failed (${response.status}): ${JSON.stringify(result)}`);
+            }
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${game}: ${result.rows} rows\n`);
+          }
+
+          const verifyResponse = await fetch(`${deployment.url}/api/verify`, { cache: 'no-store' });
+          const verify = await verifyResponse.json();
+          if (!verifyResponse.ok || verify.ok !== true) {
+            throw new Error(`Six-game verification failed (${verifyResponse.status}): ${JSON.stringify(verify)}`);
+          }
+
+          for (const game of games) {
+            const check = verify.checks?.[game];
+            if (!check?.ok) throw new Error(`${game} did not pass stored-history verification.`);
+            fs.appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              `${game}: ${check.rows} rows, ${check.oldest} through ${check.newest}\n`
+            );
+          }
+          console.log('All six games passed six-month stored-history verification.');
+          NODE
+
+      - name: Smoke-check the Preview PWA
         shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: |
-          curl --fail --silent --show-error "$DEPLOYMENT_URL/" > /dev/null
-          curl --fail --silent --show-error "$DEPLOYMENT_URL/manifest.webmanifest" > /dev/null
-          curl --fail --silent --show-error "$DEPLOYMENT_URL/sw.js" > /dev/null
+          node --input-type=module <<'NODE'
+          const fs = require('fs');
+          const deployment = JSON.parse(fs.readFileSync('.preview-deployment.json', 'utf8'));
+          for (const pathname of ['/', '/manifest.webmanifest', '/sw.js', '/api/history']) {
+            const response = await fetch(`${deployment.url}${pathname}`, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`${pathname} returned HTTP ${response.status}.`);
+          }
+          console.log('Preview page, manifest, worker, and history API are reachable.');
+          NODE
