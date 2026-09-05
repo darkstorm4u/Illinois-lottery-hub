@@ -22,6 +22,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
       VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
+      VERCEL_SCOPE: darkstorm4u-5462s-projects
     defaults:
       run:
         working-directory: vercel-preview
@@ -54,23 +55,23 @@ jobs:
         shell: bash
         run: |
           node -e "const fs=require('fs');fs.mkdirSync('.vercel',{recursive:true});fs.writeFileSync('.vercel/project.json',JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}))"
-          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
 
       - name: Build the Preview deployment
-        run: vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+        run: vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
 
       - name: Deploy to an isolated Preview URL
         id: deploy
         shell: bash
         run: |
-          deployment_url="$(vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID")"
+          deployment_url="$(vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE")"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
           echo "Preview URL: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Pull Preview-only environment values for protected verification
         shell: bash
         run: |
-          vercel env pull .vercel/.env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          vercel env pull .vercel/.env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_SCOPE"
           grep -q '^CRON_SECRET=' .vercel/.env.preview.local || {
             echo "::error::CRON_SECRET is missing from Preview."
             exit 1
