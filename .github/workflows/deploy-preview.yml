@@ -1,0 +1,129 @@
+name: Deploy and Verify Lottery Hub Preview
+
+on:
+  push:
+    branches:
+      - vercel-blob-backfill-preview
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lottery-hub-vercel-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: lottery-hub-preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_EnUXORkKZU3VIsDztfNdR56T
+      VERCEL_PROJECT_ID: prj_060pTUCAX2YHhyHTZ3rOZFCbUXoq
+    defaults:
+      run:
+        working-directory: vercel-preview
+    steps:
+      - name: Check out the isolated preview branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify Vercel credential is available
+        shell: bash
+        run: |
+          test -n "${VERCEL_TOKEN:-}" || {
+            echo "::error::VERCEL_TOKEN is missing from the lottery-hub-preview environment."
+            exit 1
+          }
+
+      - name: Install preview dependencies
+        run: npm install
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Link only this runner to the existing Vercel project
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');fs.mkdirSync('.vercel',{recursive:true});fs.writeFileSync('.vercel/project.json',JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}))"
+          vercel pull --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+
+      - name: Build the Preview deployment
+        run: vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+
+      - name: Deploy to an isolated Preview URL
+        id: deploy
+        shell: bash
+        run: |
+          deployment_url="$(vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID")"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pull Preview-only environment values for protected verification
+        shell: bash
+        run: |
+          vercel env pull .vercel/.env.preview.local --yes --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          grep -q '^CRON_SECRET=' .vercel/.env.preview.local || {
+            echo "::error::CRON_SECRET is missing from Preview."
+            exit 1
+          }
+          grep -q '^BLOB_READ_WRITE_TOKEN=' .vercel/.env.preview.local || {
+            echo "::error::BLOB_READ_WRITE_TOKEN is missing from Preview."
+            exit 1
+          }
+
+      - name: Verify the updater rejects anonymous requests
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --request POST "$DEPLOYMENT_URL/api/backfill?game=pick3")"
+          test "$status" = "401" || {
+            echo "::error::Protected updater returned HTTP $status without authorization; expected 401."
+            exit 1
+          }
+
+      - name: Backfill six months for all six games
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -a
+          source .vercel/.env.preview.local
+          set +a
+          test -n "${CRON_SECRET:-}" || {
+            echo "::error::CRON_SECRET could not be loaded."
+            exit 1
+          }
+          for game in pick3 pick4 lotto lucky powerball mega; do
+            response="$(curl --fail --silent --show-error --request POST --header "Authorization: Bearer ${CRON_SECRET}" "$DEPLOYMENT_URL/api/backfill?game=$game")"
+            echo "$response" | jq --exit-status '.ok == true' > /dev/null
+            rows="$(echo "$response" | jq --raw-output '.rows')"
+            echo "$game: $rows rows" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Verify all six stored histories
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          result="$(curl --fail --silent --show-error "$DEPLOYMENT_URL/api/verify")"
+          echo "$result" | jq --exit-status '.ok == true and (.checks | to_entries | all(.value.ok == true))' > /dev/null
+          echo "$result" | jq --raw-output '.checks | to_entries[] | "\(.key): \(.value.rows) rows, \(.value.oldest) through \(.value.newest)"' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke-check the PWA files
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          curl --fail --silent --show-error "$DEPLOYMENT_URL/" > /dev/null
+          curl --fail --silent --show-error "$DEPLOYMENT_URL/manifest.webmanifest" > /dev/null
+          curl --fail --silent --show-error "$DEPLOYMENT_URL/sw.js" > /dev/null
